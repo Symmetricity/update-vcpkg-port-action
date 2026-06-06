@@ -10,16 +10,92 @@ on:
 permissions:
   contents: read
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   test:
+    name: Test action
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - name: Validate workflows
-        uses: rhysd/actionlint@v1.7.12
+      - uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
         with:
-          args: -color .github/workflows/test.yml examples/generic/update-vcpkg-port.yml
+          persist-credentials: false
+      - name: Validate workflows
+        uses: rhysd/actionlint@914e7df21a07ef503a81201c76d2b11c789d3fca # v1.7.12
+        with:
+          args: -color .github/workflows/test.yml .github/workflows/codeql.yml examples/generic/update-vcpkg-port.yml
+      - name: Audit workflows
+        run: pipx run zizmor --pedantic .
+      - name: Lint Python
+        run: pipx run ruff check scripts tests
+      - name: Check Python formatting
+        run: pipx run ruff format --check scripts tests
       - name: Compile Python
         run: python3 -m py_compile scripts/update_vcpkg_port.py
       - name: Run unit tests
         run: python3 -m unittest discover -s tests -v
+      - name: Prepare self-use fixture
+        env:
+          FIXTURE_ROOT: ${{ github.workspace }}/selftest
+        run: |
+          mkdir -p "${FIXTURE_ROOT}/source" "${FIXTURE_ROOT}/template" "${FIXTURE_ROOT}/vcpkg/ports" "${FIXTURE_ROOT}/vcpkg/versions"
+          git -C "${FIXTURE_ROOT}/vcpkg" init
+
+          printf 'fixture source\n' > "${FIXTURE_ROOT}/source/README.txt"
+          tar -czf "${FIXTURE_ROOT}/source.tar.gz" -C "${FIXTURE_ROOT}/source" .
+
+          cat > "${FIXTURE_ROOT}/template/portfile.cmake.in" <<'PORTFILE'
+          vcpkg_from_github(
+              OUT_SOURCE_PATH SOURCE_PATH
+              REPO @UPSTREAM_REPOSITORY@
+              REF "@TAG@"
+              SHA512 @SOURCE_SHA512@
+              HEAD_REF @HEAD_REF@
+          )
+          PORTFILE
+
+          cat > "${FIXTURE_ROOT}/template/vcpkg.json.in" <<'MANIFEST'
+          {
+            "name": "@PORT@",
+            "version": "@VERSION@"
+          }
+          MANIFEST
+
+          cat > "${FIXTURE_ROOT}/vcpkg/vcpkg" <<'VCPKG'
+          #!/usr/bin/env bash
+          set -euo pipefail
+
+          printf '%s\n' "$*" >> "${SELFTEST_VCPKG_LOG}"
+          if [ "${1:-}" = "x-add-version" ]; then
+            port="${2:-}"
+            first="${port:0:1}"
+            mkdir -p "versions/${first}-"
+            printf '{"versions":[{"version":"1.2.3","port-version":0,"git-tree":"fake"}]}\n' > "versions/${first}-/${port}.json"
+          fi
+          VCPKG
+          chmod +x "${FIXTURE_ROOT}/vcpkg/vcpkg"
+      - name: Exercise local action
+        id: self-test
+        uses: ./
+        env:
+          SELFTEST_VCPKG_LOG: ${{ github.workspace }}/selftest/vcpkg.log
+        with:
+          port: fixtureport
+          upstream-repository: owner/fixtureport
+          tag: v1.2.3
+          archive-url: file://${{ github.workspace }}/selftest/source.tar.gz
+          vcpkg-root: selftest/vcpkg
+          template-dir: selftest/template
+      - name: Verify local action outputs
+        env:
+          PORT_RELATIVE_PATH: ${{ steps.self-test.outputs.port-relative-path }}
+          VERSION: ${{ steps.self-test.outputs.version }}
+          VERSION_RELATIVE_PATH: ${{ steps.self-test.outputs.version-relative-path }}
+        run: |
+          test "${VERSION}" = "1.2.3"
+          test "${PORT_RELATIVE_PATH}" = "ports/fixtureport"
+          test "${VERSION_RELATIVE_PATH}" = "versions/f-/fixtureport.json"
+          grep -q "x-add-version fixtureport --overwrite-version" selftest/vcpkg.log
+          grep -q "install fixtureport:x64-linux --clean-after-build" selftest/vcpkg.log

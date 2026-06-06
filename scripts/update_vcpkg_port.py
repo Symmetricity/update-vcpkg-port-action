@@ -191,7 +191,10 @@ def print_diff(vcpkg_root: Path, port: str, version_path: str) -> None:
     run(["git", "--no-pager", "diff", "--stat", "--", *paths], cwd=vcpkg_root)
     run(["git", "--no-pager", "diff", "--", *paths], cwd=vcpkg_root)
 
-    untracked = capture(["git", "ls-files", "--others", "--exclude-standard", "--", *paths], cwd=vcpkg_root)
+    untracked = capture(
+        ["git", "ls-files", "--others", "--exclude-standard", "--", *paths],
+        cwd=vcpkg_root,
+    )
     for line in untracked.splitlines():
         print()
         subprocess.run(

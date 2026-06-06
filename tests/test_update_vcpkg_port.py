@@ -55,7 +55,7 @@ class UpdateVcpkgPortTests(unittest.TestCase):
 
             template_dir.mkdir()
             (template_dir / "portfile.cmake.in").write_text(
-                "REF \"@TAG@\"\nSHA512 @SOURCE_SHA512@\n",
+                'REF "@TAG@"\nSHA512 @SOURCE_SHA512@\n',
                 encoding="utf-8",
             )
             (template_dir / "vcpkg.json.in").write_text(

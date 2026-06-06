@@ -31,12 +31,12 @@ jobs:
       UPSTREAM_REPOSITORY: ${{ inputs.upstream_repository }}
     steps:
       - name: Checkout package project
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           path: project
 
       - name: Checkout vcpkg fork
-        uses: actions/checkout@v4
+        uses: actions/checkout@v5
         with:
           fetch-depth: 0
           path: vcpkg
