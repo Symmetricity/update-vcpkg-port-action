@@ -16,7 +16,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Validate workflows
-        uses: rhysd/actionlint@v1
+        uses: rhysd/actionlint@v1.7.12
         with:
           args: -color .github/workflows/test.yml examples/generic/update-vcpkg-port.yml
       - name: Compile Python
