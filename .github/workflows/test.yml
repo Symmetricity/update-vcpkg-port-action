@@ -25,7 +25,13 @@ jobs:
       - name: Validate workflows
         uses: rhysd/actionlint@914e7df21a07ef503a81201c76d2b11c789d3fca # v1.7.12
         with:
-          args: -color .github/workflows/test.yml .github/workflows/codeql.yml examples/generic/update-vcpkg-port.yml
+          args: >-
+            -color
+            .github/workflows/test.yml
+            .github/workflows/codeql.yml
+            examples/generic/update-vcpkg-port.yml
+            examples/upstream-maintainer/update-vcpkg-port-on-release.yml
+            examples/user-maintained-release-watch/update-vcpkg-port.yml
       - name: Audit workflows
         run: pipx run zizmor --pedantic .
       - name: Lint Python

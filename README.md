@@ -54,13 +54,33 @@ push to another repository.
     git -C vcpkg switch -C "update/examplelib-v1.2.3-${GITHUB_RUN_ID}" upstream/master
 ```
 
-See `examples/generic/update-vcpkg-port.yml` for a complete workflow.
+See `examples/generic/update-vcpkg-port.yml` for a complete manual workflow.
 
 For cross-repository pushes, configure:
 
 - repository variable `VCPKG_FORK_REPOSITORY`, for example `OWNER/vcpkg`
 - repository secret `VCPKG_PR_TOKEN`, preferably a fine-grained PAT limited to
   contents read/write on that vcpkg fork
+
+## Workflow Examples
+
+- `examples/generic/update-vcpkg-port.yml`: manual starter workflow for a
+  package-specific template.
+- `examples/upstream-maintainer/update-vcpkg-port-on-release.yml`: advanced
+  workflow for package maintainers. It runs on `release.published`, packages
+  that release tag, skips if a draft branch for the tag already exists, pushes
+  a branch to the configured vcpkg fork, and opens or updates a tracking issue
+  in the package repository.
+- `examples/user-maintained-release-watch/update-vcpkg-port.yml`: advanced
+  workflow for user-maintained ports. It runs on a schedule or manually,
+  detects the latest upstream release or tag, skips tags that already have a
+  draft branch in the vcpkg fork, pushes a new branch, and opens or updates a
+  tracking issue in the configured notification repository.
+
+Use the scheduled user-maintained example only where automated notification is
+appropriate. By default it notifies the repository that owns the workflow; if
+you set `NOTIFY_REPOSITORY` to an upstream project, use a suitable token and
+make sure the upstream maintainers expect those issues.
 
 ## Templates
 

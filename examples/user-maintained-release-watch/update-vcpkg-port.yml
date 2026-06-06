@@ -1,0 +1,195 @@
+name: Watch upstream releases for vcpkg
+
+on:
+  schedule:
+    - cron: "17 9 * * *"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Optional upstream tag to package, for example v1.2.3"
+        required: false
+        type: string
+      dry_run:
+        description: "Render and validate the port, print the diff, and skip commit/push/issue"
+        default: true
+        type: boolean
+
+permissions:
+  contents: read
+  issues: write
+
+jobs:
+  update-vcpkg:
+    runs-on: ubuntu-latest
+    env:
+      PORT: ${{ vars.VCPKG_PORT }}
+      UPSTREAM_REPOSITORY: ${{ vars.UPSTREAM_REPOSITORY }}
+      VCPKG_FORK_REPOSITORY: ${{ vars.VCPKG_FORK_REPOSITORY }}
+      NOTIFY_REPOSITORY: ${{ vars.NOTIFY_REPOSITORY || github.repository }}
+      DRY_RUN: ${{ github.event_name == 'workflow_dispatch' && inputs.dry_run || false }}
+    steps:
+      - name: Check settings
+        env:
+          VCPKG_PR_TOKEN: ${{ secrets.VCPKG_PR_TOKEN }}
+        run: |
+          if [ -z "$PORT" ]; then
+            echo "::error::VCPKG_PORT repository variable is required, for example examplelib"
+            exit 1
+          fi
+          if [ -z "$UPSTREAM_REPOSITORY" ]; then
+            echo "::error::UPSTREAM_REPOSITORY repository variable is required, for example upstream-owner/examplelib"
+            exit 1
+          fi
+          if [ -z "$VCPKG_FORK_REPOSITORY" ]; then
+            echo "::error::VCPKG_FORK_REPOSITORY repository variable is required, for example OWNER/vcpkg"
+            exit 1
+          fi
+          if [ -z "$VCPKG_PR_TOKEN" ]; then
+            echo "::error::VCPKG_PR_TOKEN secret is required to push to $VCPKG_FORK_REPOSITORY"
+            exit 1
+          fi
+
+      - name: Resolve upstream tag
+        id: release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REQUESTED_TAG: ${{ inputs.tag }}
+        run: |
+          tag="$REQUESTED_TAG"
+          if [ -z "$tag" ]; then
+            tag="$(
+              gh api "repos/${UPSTREAM_REPOSITORY}/releases/latest" \
+                --jq '.tag_name // ""' 2>/dev/null || true
+            )"
+          fi
+          if [ -z "$tag" ]; then
+            tag="$(
+              gh api "repos/${UPSTREAM_REPOSITORY}/tags" \
+                --jq '.[0].name // ""'
+            )"
+          fi
+          if [ -z "$tag" ]; then
+            echo "::error::Could not resolve an upstream release or tag for $UPSTREAM_REPOSITORY"
+            exit 1
+          fi
+
+          branch_name="update/${PORT}-${tag}"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "branch_name=$branch_name" >> "$GITHUB_OUTPUT"
+          echo "Resolved $UPSTREAM_REPOSITORY $tag"
+
+      - name: Check for existing vcpkg draft branch
+        id: existing
+        env:
+          GH_TOKEN: ${{ secrets.VCPKG_PR_TOKEN }}
+          BRANCH_NAME: ${{ steps.release.outputs.branch_name }}
+        run: |
+          matches="$(
+            gh api "repos/${VCPKG_FORK_REPOSITORY}/git/matching-refs/heads/${BRANCH_NAME}" \
+              --jq length
+          )"
+          if [ "$matches" != "0" ]; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "Branch already exists: https://github.com/${VCPKG_FORK_REPOSITORY}/tree/${BRANCH_NAME}"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Checkout maintenance project
+        if: ${{ steps.existing.outputs.exists != 'true' }}
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          path: maintenance
+          persist-credentials: false
+
+      - name: Checkout vcpkg fork
+        if: ${{ steps.existing.outputs.exists != 'true' }}
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          path: vcpkg
+          repository: ${{ env.VCPKG_FORK_REPOSITORY }}
+          token: ${{ secrets.VCPKG_PR_TOKEN }}
+
+      - name: Start from microsoft/vcpkg master
+        if: ${{ steps.existing.outputs.exists != 'true' }}
+        env:
+          BRANCH_NAME: ${{ steps.release.outputs.branch_name }}
+        run: |
+          git -C vcpkg remote add upstream https://github.com/microsoft/vcpkg.git || true
+          git -C vcpkg fetch upstream master
+          git -C vcpkg switch -C "$BRANCH_NAME" upstream/master
+
+      - name: Update port
+        id: update
+        if: ${{ steps.existing.outputs.exists != 'true' }}
+        uses: Symmetricity/update-vcpkg-port-action@v1
+        with:
+          port: ${{ env.PORT }}
+          upstream-repository: ${{ env.UPSTREAM_REPOSITORY }}
+          tag: ${{ steps.release.outputs.tag }}
+          vcpkg-root: vcpkg
+          template-dir: maintenance/.vcpkg-port-template
+          dry-run: ${{ env.DRY_RUN }}
+
+      - name: Compile consumer smoke test
+        if: ${{ steps.existing.outputs.exists != 'true' && hashFiles('maintenance/.github/vcpkg-consumer-smoke-test.sh') != '' }}
+        env:
+          VCPKG_ROOT: ${{ github.workspace }}/vcpkg
+          VCPKG_TRIPLET: x64-linux
+          VERSION: ${{ steps.update.outputs.version }}
+        run: |
+          bash maintenance/.github/vcpkg-consumer-smoke-test.sh
+
+      - name: Commit and push vcpkg branch
+        if: ${{ steps.existing.outputs.exists != 'true' && steps.update.outputs.changed == 'true' && env.DRY_RUN != 'true' }}
+        env:
+          BRANCH_NAME: ${{ steps.release.outputs.branch_name }}
+          VERSION: ${{ steps.update.outputs.version }}
+          PORT_PATH: ${{ steps.update.outputs.port-relative-path }}
+          VERSION_PATH: ${{ steps.update.outputs.version-relative-path }}
+        run: |
+          git -C vcpkg config user.name "github-actions[bot]"
+          git -C vcpkg config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C vcpkg add "$PORT_PATH" "versions/baseline.json" "$VERSION_PATH"
+          git -C vcpkg commit \
+            -m "[${PORT}] Update to ${VERSION}" \
+            -m "Generated by update-vcpkg-port-action from ${GITHUB_REPOSITORY}."
+          git -C vcpkg push origin "HEAD:${BRANCH_NAME}"
+          echo "Pushed https://github.com/${VCPKG_FORK_REPOSITORY}/tree/${BRANCH_NAME}"
+
+      - name: Notify maintainer
+        if: ${{ steps.existing.outputs.exists != 'true' && steps.update.outputs.changed == 'true' && env.DRY_RUN != 'true' }}
+        env:
+          GH_TOKEN: ${{ secrets.NOTIFY_TOKEN || github.token }}
+          BRANCH_NAME: ${{ steps.release.outputs.branch_name }}
+          TAG: ${{ steps.release.outputs.tag }}
+          VERSION: ${{ steps.update.outputs.version }}
+        run: |
+          title="vcpkg draft branch ready for ${PORT} ${VERSION}"
+          body_file="$(mktemp)"
+          {
+            echo "A vcpkg draft branch was generated after detecting upstream tag \`${TAG}\`."
+            echo
+            echo "- upstream repository: https://github.com/${UPSTREAM_REPOSITORY}"
+            echo "- vcpkg fork branch: https://github.com/${VCPKG_FORK_REPOSITORY}/tree/${BRANCH_NAME}"
+            echo "- maintenance workflow: https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}"
+            echo
+            echo "Review the branch and decide whether to open a PR to \`microsoft/vcpkg\`."
+            echo
+            echo "_Created by update-vcpkg-port-action automation._"
+          } > "$body_file"
+
+          existing_issue="$(
+            gh issue list \
+              --repo "$NOTIFY_REPOSITORY" \
+              --state open \
+              --search "$title in:title" \
+              --json number \
+              --jq '.[0].number // ""'
+          )"
+          if [ -n "$existing_issue" ]; then
+            gh issue comment "$existing_issue" --repo "$NOTIFY_REPOSITORY" --body-file "$body_file"
+          else
+            gh issue create --repo "$NOTIFY_REPOSITORY" --title "$title" --body-file "$body_file"
+          fi
