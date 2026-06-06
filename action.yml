@@ -58,7 +58,7 @@ inputs:
     required: false
     default: ""
   dry-run:
-    description: Print the generated diff after updating files. This does not commit, push, or open a PR.
+    description: Update the checked-out vcpkg tree and print the generated diff. This action never commits, pushes, or opens a PR.
     required: false
     default: "false"
 
