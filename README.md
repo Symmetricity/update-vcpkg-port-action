@@ -31,11 +31,11 @@ The workflow should check out the upstream project and a writable vcpkg fork
 before invoking the Action.
 
 ```yaml
-- uses: actions/checkout@v4
+- uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
   with:
     path: project
 
-- uses: actions/checkout@v4
+- uses: actions/checkout@93cb6efe18208431cddfb8368fd83d5badbf9bfd # v5
   with:
     fetch-depth: 0
     path: vcpkg
