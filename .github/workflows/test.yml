@@ -1,0 +1,25 @@
+name: Test
+
+on:
+  pull_request:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Validate workflows
+        uses: rhysd/actionlint@v1
+        with:
+          args: -color .github/workflows/test.yml examples/generic/update-vcpkg-port.yml
+      - name: Compile Python
+        run: python3 -m py_compile scripts/update_vcpkg_port.py
+      - name: Run unit tests
+        run: python3 -m unittest discover -s tests -v

@@ -1,0 +1,137 @@
+name: Update vcpkg port
+description: Render or update a vcpkg port from an upstream release and refresh the vcpkg version database.
+author: Symmetricity
+
+inputs:
+  port:
+    description: vcpkg port name to create or update.
+    required: true
+  vcpkg-root:
+    description: Path to a checked-out vcpkg repository or registry.
+    required: false
+    default: vcpkg
+  upstream-repository:
+    description: Upstream GitHub repository in OWNER/REPO form. Used for latest-tag lookup and default archive URL.
+    required: false
+  tag:
+    description: Upstream tag to package. If omitted, the latest GitHub tag is used.
+    required: false
+  version:
+    description: Version to write to vcpkg.json. Defaults to tag with version-strip-prefix removed.
+    required: false
+  version-strip-prefix:
+    description: Prefix to strip from tag when deriving version.
+    required: false
+    default: v
+  archive-url:
+    description: Source archive URL. Supports {repository}, {tag}, and {version}; defaults to GitHub tag tarball.
+    required: false
+  head-ref:
+    description: HEAD_REF value for templates.
+    required: false
+    default: master
+  template-dir:
+    description: Directory containing port templates such as portfile.cmake.in and vcpkg.json.in.
+    required: false
+  overwrite-version:
+    description: Pass --overwrite-version to vcpkg x-add-version.
+    required: false
+    default: "true"
+  bootstrap:
+    description: Bootstrap vcpkg if the vcpkg executable is missing.
+    required: false
+    default: "true"
+  run-install:
+    description: Run vcpkg install after updating the port.
+    required: false
+    default: "true"
+  test-triplet:
+    description: Triplet used when run-install is true.
+    required: false
+    default: x64-linux
+  install-args:
+    description: Extra arguments passed to vcpkg install.
+    required: false
+    default: --clean-after-build
+  x-add-version-args:
+    description: Extra arguments passed to vcpkg x-add-version.
+    required: false
+    default: ""
+  dry-run:
+    description: Print the generated diff after updating files. This does not commit, push, or open a PR.
+    required: false
+    default: "false"
+
+outputs:
+  tag:
+    description: Resolved upstream tag.
+    value: ${{ steps.update.outputs.tag }}
+  version:
+    description: Resolved package version.
+    value: ${{ steps.update.outputs.version }}
+  sha512:
+    description: SHA512 of the resolved source archive.
+    value: ${{ steps.update.outputs.sha512 }}
+  port-path:
+    description: Path to the updated port directory.
+    value: ${{ steps.update.outputs.port-path }}
+  port-relative-path:
+    description: Port directory path relative to vcpkg-root.
+    value: ${{ steps.update.outputs.port-relative-path }}
+  version-path:
+    description: Expected vcpkg versions file path for the port.
+    value: ${{ steps.update.outputs.version-path }}
+  version-relative-path:
+    description: Expected vcpkg versions file path relative to vcpkg-root.
+    value: ${{ steps.update.outputs.version-relative-path }}
+  changed:
+    description: Whether the vcpkg checkout has changes for this port or versions database.
+    value: ${{ steps.update.outputs.changed }}
+
+runs:
+  using: composite
+  steps:
+    - name: Update vcpkg port
+      id: update
+      shell: bash
+      env:
+        INPUT_PORT: ${{ inputs.port }}
+        INPUT_VCPKG_ROOT: ${{ inputs.vcpkg-root }}
+        INPUT_UPSTREAM_REPOSITORY: ${{ inputs.upstream-repository }}
+        INPUT_TAG: ${{ inputs.tag }}
+        INPUT_VERSION: ${{ inputs.version }}
+        INPUT_VERSION_STRIP_PREFIX: ${{ inputs.version-strip-prefix }}
+        INPUT_ARCHIVE_URL: ${{ inputs.archive-url }}
+        INPUT_HEAD_REF: ${{ inputs.head-ref }}
+        INPUT_TEMPLATE_DIR: ${{ inputs.template-dir }}
+        INPUT_OVERWRITE_VERSION: ${{ inputs.overwrite-version }}
+        INPUT_BOOTSTRAP: ${{ inputs.bootstrap }}
+        INPUT_RUN_INSTALL: ${{ inputs.run-install }}
+        INPUT_TEST_TRIPLET: ${{ inputs.test-triplet }}
+        INPUT_INSTALL_ARGS: ${{ inputs.install-args }}
+        INPUT_X_ADD_VERSION_ARGS: ${{ inputs.x-add-version-args }}
+        INPUT_DRY_RUN: ${{ inputs.dry-run }}
+      run: |
+        if command -v python3 >/dev/null 2>&1; then
+          python=python3
+        else
+          python=python
+        fi
+
+        "$python" "$GITHUB_ACTION_PATH/scripts/update_vcpkg_port.py" \
+          --port "$INPUT_PORT" \
+          --vcpkg-root "$INPUT_VCPKG_ROOT" \
+          --upstream-repository "$INPUT_UPSTREAM_REPOSITORY" \
+          --tag "$INPUT_TAG" \
+          --version "$INPUT_VERSION" \
+          --version-strip-prefix "$INPUT_VERSION_STRIP_PREFIX" \
+          --archive-url "$INPUT_ARCHIVE_URL" \
+          --head-ref "$INPUT_HEAD_REF" \
+          --template-dir "$INPUT_TEMPLATE_DIR" \
+          --overwrite-version "$INPUT_OVERWRITE_VERSION" \
+          --bootstrap "$INPUT_BOOTSTRAP" \
+          --run-install "$INPUT_RUN_INSTALL" \
+          --test-triplet "$INPUT_TEST_TRIPLET" \
+          --install-args "$INPUT_INSTALL_ARGS" \
+          --x-add-version-args "$INPUT_X_ADD_VERSION_ARGS" \
+          --dry-run "$INPUT_DRY_RUN"

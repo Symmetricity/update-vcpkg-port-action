@@ -1,0 +1,16 @@
+{
+  "name": "@PORT@",
+  "version": "@VERSION@",
+  "description": "Package description.",
+  "homepage": "https://github.com/@UPSTREAM_REPOSITORY@",
+  "dependencies": [
+    {
+      "name": "vcpkg-cmake",
+      "host": true
+    },
+    {
+      "name": "vcpkg-cmake-config",
+      "host": true
+    }
+  ]
+}

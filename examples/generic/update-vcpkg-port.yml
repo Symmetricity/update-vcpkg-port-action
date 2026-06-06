@@ -1,0 +1,75 @@
+name: Update vcpkg port
+
+on:
+  workflow_dispatch:
+    inputs:
+      port:
+        description: "vcpkg port name, for example examplelib"
+        required: true
+        type: string
+      upstream_repository:
+        description: "Upstream GitHub repository, for example owner/examplelib"
+        required: true
+        type: string
+      tag:
+        description: "Tag to package, for example v1.2.3"
+        required: true
+        type: string
+      dry_run:
+        description: "Show generated diff without committing or pushing"
+        default: true
+        type: boolean
+
+permissions:
+  contents: write
+
+jobs:
+  update-vcpkg:
+    runs-on: ubuntu-latest
+    env:
+      PORT: ${{ inputs.port }}
+      UPSTREAM_REPOSITORY: ${{ inputs.upstream_repository }}
+    steps:
+      - name: Checkout package project
+        uses: actions/checkout@v4
+        with:
+          path: project
+
+      - name: Checkout vcpkg fork
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          path: vcpkg
+          repository: ${{ vars.VCPKG_FORK_REPOSITORY }}
+          token: ${{ secrets.VCPKG_PR_TOKEN || github.token }}
+
+      - name: Start from microsoft/vcpkg master
+        run: |
+          git -C vcpkg remote add upstream https://github.com/microsoft/vcpkg.git || true
+          git -C vcpkg fetch upstream master
+          git -C vcpkg switch -C "update/${PORT}-${{ inputs.tag }}" upstream/master
+
+      - name: Update port
+        id: update
+        uses: Symmetricity/update-vcpkg-port-action@v1
+        with:
+          port: ${{ env.PORT }}
+          upstream-repository: ${{ env.UPSTREAM_REPOSITORY }}
+          tag: ${{ inputs.tag }}
+          vcpkg-root: vcpkg
+          template-dir: project/.vcpkg-port-template
+          dry-run: ${{ inputs.dry_run }}
+
+      - name: Commit and push branch
+        if: ${{ steps.update.outputs.changed == 'true' && !inputs.dry_run }}
+        env:
+          TAG: ${{ steps.update.outputs.tag }}
+          VERSION: ${{ steps.update.outputs.version }}
+          PORT_PATH: ${{ steps.update.outputs.port-relative-path }}
+          VERSION_PATH: ${{ steps.update.outputs.version-relative-path }}
+        run: |
+          git -C vcpkg config user.name "github-actions[bot]"
+          git -C vcpkg config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git -C vcpkg add "${PORT_PATH}" "versions/baseline.json" "${VERSION_PATH}"
+          git -C vcpkg commit -m "[${PORT}] Update to ${VERSION}"
+          git -C vcpkg push origin "HEAD:update/${PORT}-${TAG}"
