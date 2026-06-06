@@ -153,6 +153,190 @@ def update_existing_port(port_dir: Path, tag: str, version: str, sha512: str) ->
     update_portfile(portfile, tag, sha512)
 
 
+def split_input_list(value: str) -> list[str]:
+    return [part.strip() for part in re.split(r"[\s,;]+", value) if part.strip()]
+
+
+def validate_cmake_package_name(value: str) -> None:
+    if not re.fullmatch(r"[A-Za-z0-9_.+-]+", value):
+        fail(f"invalid CMake package name: {value}")
+
+
+def validate_cmake_target_name(value: str) -> None:
+    if not re.fullmatch(r"[A-Za-z0-9_.+:-]+", value):
+        fail(f"invalid CMake target name: {value}")
+
+
+def validate_cmake_names(label: str, values: list[str], pattern: str) -> None:
+    for value in values:
+        if not re.fullmatch(pattern, value):
+            fail(f"invalid {label}: {value}")
+
+
+def cmake_variable_stem(package_name: str) -> str:
+    stem = re.sub(r"[^A-Za-z0-9_]", "_", package_name).upper()
+    if stem[0].isdigit():
+        stem = "_" + stem
+    return stem
+
+
+def cmake_quote(value: str) -> str:
+    return '"' + value.replace("\\", "\\\\").replace('"', '\\"') + '"'
+
+
+def cmake_names_block(values: list[str], indent: str = "        ") -> str:
+    return "\n".join(f"{indent}{cmake_quote(value)}" for value in values)
+
+
+def generated_cmake_config(
+    package_name: str,
+    target_name: str,
+    header_names: list[str],
+    library_names: list[str],
+) -> str:
+    stem = cmake_variable_stem(package_name)
+    prefix_var = f"_{stem}_PREFIX"
+    include_var = f"{stem}_INCLUDE_DIR"
+    release_var = f"{stem}_LIBRARY_RELEASE"
+    debug_var = f"{stem}_LIBRARY_DEBUG"
+    target_type = "UNKNOWN" if library_names else "INTERFACE"
+    lines = [
+        f'get_filename_component({prefix_var} "${{CMAKE_CURRENT_LIST_DIR}}/../.." ABSOLUTE)',
+        "",
+    ]
+
+    if header_names:
+        lines.extend(
+            [
+                f"find_path({include_var}",
+                "    NAMES",
+                cmake_names_block(header_names),
+                f'    PATHS "${{{prefix_var}}}/include"',
+                "    NO_DEFAULT_PATH",
+                ")",
+                f"if(NOT {include_var})",
+                f'    message(FATAL_ERROR "{package_name} headers not found")',
+                "endif()",
+                "",
+            ]
+        )
+
+    if library_names:
+        lines.extend(
+            [
+                f"find_library({release_var}",
+                "    NAMES",
+                cmake_names_block(library_names),
+                f'    PATHS "${{{prefix_var}}}/lib"',
+                "    NO_DEFAULT_PATH",
+                ")",
+                f"find_library({debug_var}",
+                "    NAMES",
+                cmake_names_block(library_names),
+                f'    PATHS "${{{prefix_var}}}/debug/lib"',
+                "    NO_DEFAULT_PATH",
+                ")",
+                f"if(NOT {release_var} AND NOT {debug_var})",
+                f'    message(FATAL_ERROR "{package_name} library not found")',
+                "endif()",
+                "",
+            ]
+        )
+
+    lines.extend(
+        [
+            f"if(NOT TARGET {target_name})",
+            f"    add_library({target_name} {target_type} IMPORTED)",
+        ]
+    )
+
+    if header_names:
+        lines.extend(
+            [
+                f"    set_target_properties({target_name} PROPERTIES",
+                f'        INTERFACE_INCLUDE_DIRECTORIES "${{{include_var}}}"',
+                "    )",
+            ]
+        )
+
+    if library_names:
+        lines.extend(
+            [
+                f"    if({release_var})",
+                f"        set_property(TARGET {target_name} APPEND PROPERTY IMPORTED_CONFIGURATIONS RELEASE)",
+                f"        set_target_properties({target_name} PROPERTIES",
+                f'            IMPORTED_LOCATION "${{{release_var}}}"',
+                f'            IMPORTED_LOCATION_RELEASE "${{{release_var}}}"',
+                "            MAP_IMPORTED_CONFIG_MINSIZEREL RELEASE",
+                "            MAP_IMPORTED_CONFIG_RELWITHDEBINFO RELEASE",
+                "        )",
+                "    endif()",
+                f"    if({debug_var})",
+                f"        set_property(TARGET {target_name} APPEND PROPERTY IMPORTED_CONFIGURATIONS DEBUG)",
+                f"        set_target_properties({target_name} PROPERTIES",
+                f'            IMPORTED_LOCATION_DEBUG "${{{debug_var}}}"',
+                "        )",
+                "    endif()",
+                f"    if(NOT {release_var} AND {debug_var})",
+                f'        set_target_properties({target_name} PROPERTIES IMPORTED_LOCATION "${{{debug_var}}}")',
+                "    endif()",
+            ]
+        )
+
+    lines.extend(["endif()", ""])
+    return "\n".join(lines)
+
+
+def write_generated_cmake_config(
+    port_dir: Path,
+    package_name: str,
+    target_name: str,
+    header_names: list[str],
+    library_names: list[str],
+) -> None:
+    if not header_names and not library_names:
+        fail("--cmake-header-names or --cmake-library-names is required when --cmake-config is true")
+
+    validate_cmake_package_name(package_name)
+    validate_cmake_target_name(target_name)
+    validate_cmake_names("CMake header name", header_names, r"[A-Za-z0-9_./+-]+")
+    validate_cmake_names("CMake library name", library_names, r"[A-Za-z0-9_.+-]+")
+
+    config_filename = f"{package_name}Config.cmake"
+    (port_dir / config_filename).write_text(
+        generated_cmake_config(package_name, target_name, header_names, library_names),
+        encoding="utf-8",
+    )
+    (port_dir / "usage").write_text(
+        "The package provides CMake targets:\n\n"
+        f"  find_package({package_name} CONFIG REQUIRED)\n"
+        f"  target_link_libraries(main PRIVATE {target_name})\n",
+        encoding="utf-8",
+    )
+    ensure_portfile_installs_generated_cmake_files(port_dir / "portfile.cmake", config_filename)
+
+
+def ensure_portfile_installs_generated_cmake_files(portfile: Path, config_filename: str) -> None:
+    if not portfile.is_file():
+        fail(f"{portfile} does not exist; cannot install generated CMake config")
+
+    start = "# Generated CMake package config install begin"
+    end = "# Generated CMake package config install end"
+    block = (
+        f"{start}\n"
+        "file(INSTALL\n"
+        f'    "${{CMAKE_CURRENT_LIST_DIR}}/{config_filename}"\n'
+        '    "${CMAKE_CURRENT_LIST_DIR}/usage"\n'
+        '    DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}"\n'
+        ")\n"
+        f"{end}\n"
+    )
+    text = portfile.read_text(encoding="utf-8")
+    pattern = rf"\n?{re.escape(start)}.*?{re.escape(end)}\n?"
+    text = re.sub(pattern, "\n", text, flags=re.DOTALL).rstrip() + "\n\n" + block
+    portfile.write_text(text, encoding="utf-8")
+
+
 def bootstrap_vcpkg(vcpkg_root: Path) -> None:
     shell_script = vcpkg_root / "bootstrap-vcpkg.sh"
     batch_script = vcpkg_root / "bootstrap-vcpkg.bat"
@@ -234,6 +418,11 @@ def main() -> int:
     parser.add_argument("--archive-url", default="")
     parser.add_argument("--head-ref", default="master")
     parser.add_argument("--template-dir", default="")
+    parser.add_argument("--cmake-config", default="false")
+    parser.add_argument("--cmake-package-name", default="")
+    parser.add_argument("--cmake-target-name", default="")
+    parser.add_argument("--cmake-header-names", default="")
+    parser.add_argument("--cmake-library-names", default="")
     parser.add_argument("--overwrite-version", default="true")
     parser.add_argument("--bootstrap", default="true")
     parser.add_argument("--run-install", default="true")
@@ -288,6 +477,17 @@ def main() -> int:
         if not port_dir.is_dir():
             fail(f"{port_dir} does not exist; provide --template-dir for new ports")
         update_existing_port(port_dir, tag, version, sha512)
+
+    if parse_bool(args.cmake_config):
+        cmake_package_name = args.cmake_package_name.strip() or args.port
+        cmake_target_name = args.cmake_target_name.strip() or f"{cmake_package_name}::{cmake_package_name}"
+        write_generated_cmake_config(
+            port_dir,
+            cmake_package_name,
+            cmake_target_name,
+            split_input_list(args.cmake_header_names),
+            split_input_list(args.cmake_library_names),
+        )
 
     vcpkg = vcpkg_executable(vcpkg_root)
     if not vcpkg.exists() and parse_bool(args.bootstrap):

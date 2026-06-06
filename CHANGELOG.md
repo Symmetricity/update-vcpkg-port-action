@@ -1,5 +1,14 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- Optional generated CMake package config support for simple single-target
+  ports. When enabled, the action writes a package config, usage file, and
+  portfile install block so consumers can use `find_package(... CONFIG
+  REQUIRED)` with an imported target.
+
 ## v1.0.0
 
 Initial stable release of `update-vcpkg-port-action`.

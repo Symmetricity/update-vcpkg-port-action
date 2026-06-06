@@ -36,6 +36,22 @@ inputs:
   template-dir:
     description: Directory containing port templates such as portfile.cmake.in and vcpkg.json.in.
     required: false
+  cmake-config:
+    description: Generate a simple CMake package config, imported target, and usage file for the port.
+    required: false
+    default: "false"
+  cmake-package-name:
+    description: Package name used with find_package(... CONFIG REQUIRED). Defaults to the port name.
+    required: false
+  cmake-target-name:
+    description: Imported target defined by the generated CMake config. Defaults to <package>::<package>.
+    required: false
+  cmake-header-names:
+    description: Header names passed to find_path in the generated CMake config, separated by spaces, commas, or semicolons.
+    required: false
+  cmake-library-names:
+    description: Library names passed to find_library in the generated CMake config, separated by spaces, commas, or semicolons.
+    required: false
   overwrite-version:
     description: Pass --overwrite-version to vcpkg x-add-version.
     required: false
@@ -107,6 +123,11 @@ runs:
         INPUT_ARCHIVE_URL: ${{ inputs.archive-url }}
         INPUT_HEAD_REF: ${{ inputs.head-ref }}
         INPUT_TEMPLATE_DIR: ${{ inputs.template-dir }}
+        INPUT_CMAKE_CONFIG: ${{ inputs.cmake-config }}
+        INPUT_CMAKE_PACKAGE_NAME: ${{ inputs.cmake-package-name }}
+        INPUT_CMAKE_TARGET_NAME: ${{ inputs.cmake-target-name }}
+        INPUT_CMAKE_HEADER_NAMES: ${{ inputs.cmake-header-names }}
+        INPUT_CMAKE_LIBRARY_NAMES: ${{ inputs.cmake-library-names }}
         INPUT_OVERWRITE_VERSION: ${{ inputs.overwrite-version }}
         INPUT_BOOTSTRAP: ${{ inputs.bootstrap }}
         INPUT_RUN_INSTALL: ${{ inputs.run-install }}
@@ -131,6 +152,11 @@ runs:
           --archive-url "$INPUT_ARCHIVE_URL" \
           --head-ref "$INPUT_HEAD_REF" \
           --template-dir "$INPUT_TEMPLATE_DIR" \
+          --cmake-config "$INPUT_CMAKE_CONFIG" \
+          --cmake-package-name "$INPUT_CMAKE_PACKAGE_NAME" \
+          --cmake-target-name "$INPUT_CMAKE_TARGET_NAME" \
+          --cmake-header-names "$INPUT_CMAKE_HEADER_NAMES" \
+          --cmake-library-names "$INPUT_CMAKE_LIBRARY_NAMES" \
           --overwrite-version "$INPUT_OVERWRITE_VERSION" \
           --bootstrap "$INPUT_BOOTSTRAP" \
           --run-install "$INPUT_RUN_INSTALL" \

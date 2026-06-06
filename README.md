@@ -142,6 +142,33 @@ dependencies, usage text, license metadata, and install fixups for the package.
 Header-only libraries, non-CMake projects, moved upstream archives, and packages
 with required transitive dependencies usually need different templates.
 
+### Generated CMake Config
+
+For simple ports that install one library or one header-only target but do not
+install an upstream CMake package config, set `cmake-config: true`.
+
+```yaml
+with:
+  port: streamvbyte
+  cmake-config: true
+  cmake-package-name: streamvbyte
+  cmake-target-name: streamvbyte::streamvbyte
+  cmake-header-names: streamvbyte.h
+  cmake-library-names: streamvbyte
+```
+
+This generates `<package>Config.cmake`, installs it from the portfile, and
+writes usage text like:
+
+```cmake
+find_package(streamvbyte CONFIG REQUIRED)
+target_link_libraries(main PRIVATE streamvbyte::streamvbyte)
+```
+
+Use this only for straightforward targets. Packages with multiple libraries,
+component selection, transitive `find_dependency()` calls, unusual debug/release
+names, or an upstream CMake config should keep that logic in the template.
+
 If `template-dir` is omitted, the action can update an existing
 `ports/<port>/vcpkg.json` and `ports/<port>/portfile.cmake`. This compatibility
 mode expects one `REF` line and one `SHA512` line in the portfile; use a
@@ -161,6 +188,11 @@ non-standard update logic.
 | `archive-url` | No | GitHub tag tarball | Source archive URL. Supports `{repository}`, `{tag}`, and `{version}`. |
 | `head-ref` | No | `master` | Template value for `@HEAD_REF@`. |
 | `template-dir` | No | | Template directory for creating or replacing the port. |
+| `cmake-config` | No | `false` | Generate a simple CMake package config, imported target, and usage file for the port. |
+| `cmake-package-name` | No | `port` | Package name used with `find_package(... CONFIG REQUIRED)`. |
+| `cmake-target-name` | No | `<package>::<package>` | Imported target defined by the generated CMake config. |
+| `cmake-header-names` | No | | Header names passed to `find_path`, separated by spaces, commas, or semicolons. |
+| `cmake-library-names` | No | | Library names passed to `find_library`, separated by spaces, commas, or semicolons. |
 | `overwrite-version` | No | `true` | Pass `--overwrite-version` to `vcpkg x-add-version`. |
 | `bootstrap` | No | `true` | Bootstrap vcpkg if the executable is missing. |
 | `run-install` | No | `true` | Run `vcpkg install` after updating. |

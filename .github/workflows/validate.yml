@@ -94,6 +94,11 @@ jobs:
           archive-url: file://${{ github.workspace }}/selftest/source.tar.gz
           vcpkg-root: selftest/vcpkg
           template-dir: selftest/template
+          cmake-config: true
+          cmake-package-name: fixtureport
+          cmake-target-name: fixtureport::fixtureport
+          cmake-header-names: fixtureport.h
+          cmake-library-names: fixtureport
       - name: Verify local action outputs
         env:
           PORT_RELATIVE_PATH: ${{ steps.self-test.outputs.port-relative-path }}
@@ -105,3 +110,5 @@ jobs:
           test "${VERSION_RELATIVE_PATH}" = "versions/f-/fixtureport.json"
           grep -q "x-add-version fixtureport --overwrite-version" selftest/vcpkg.log
           grep -q "install fixtureport:x64-linux --clean-after-build" selftest/vcpkg.log
+          grep -q "add_library(fixtureport::fixtureport UNKNOWN IMPORTED)" selftest/vcpkg/ports/fixtureport/fixtureportConfig.cmake
+          grep -q "find_package(fixtureport CONFIG REQUIRED)" selftest/vcpkg/ports/fixtureport/usage
