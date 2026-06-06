@@ -1,6 +1,9 @@
 name: Update vcpkg port
 description: Render or update a vcpkg port from an upstream release and refresh the vcpkg version database.
 author: Symmetricity
+branding:
+  icon: package
+  color: blue
 
 inputs:
   port:
