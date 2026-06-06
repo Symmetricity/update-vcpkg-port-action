@@ -132,6 +132,6 @@ runs:
           --bootstrap "$INPUT_BOOTSTRAP" \
           --run-install "$INPUT_RUN_INSTALL" \
           --test-triplet "$INPUT_TEST_TRIPLET" \
-          --install-args "$INPUT_INSTALL_ARGS" \
-          --x-add-version-args "$INPUT_X_ADD_VERSION_ARGS" \
+          --install-args="$INPUT_INSTALL_ARGS" \
+          --x-add-version-args="$INPUT_X_ADD_VERSION_ARGS" \
           --dry-run "$INPUT_DRY_RUN"
