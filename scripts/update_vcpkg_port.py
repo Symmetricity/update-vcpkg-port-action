@@ -103,6 +103,19 @@ def render_template_tree(template_dir: Path, port_dir: Path, values: dict[str, s
             target.write_bytes(data)
 
 
+def version_ref_for_style(tag: str, version: str, style: str) -> str:
+    style = style.strip().lower()
+    if style == "literal":
+        return tag
+    if style != "auto":
+        fail("--version-ref-style must be literal or auto")
+    if tag == version:
+        return "${VERSION}"
+    if tag == f"v{version}":
+        return "v${VERSION}"
+    return tag
+
+
 def update_manifest(path: Path, version: str) -> None:
     manifest = json.loads(path.read_text(encoding="utf-8"))
     version_keys = ["version", "version-semver", "version-date", "version-string"]
@@ -501,6 +514,7 @@ def main() -> int:
     parser.add_argument("--tag", default="")
     parser.add_argument("--version", default="")
     parser.add_argument("--version-strip-prefix", default="v")
+    parser.add_argument("--version-ref-style", default="literal")
     parser.add_argument("--archive-url", default="")
     parser.add_argument("--head-ref", default="master")
     parser.add_argument("--template-dir", default="")
@@ -546,6 +560,7 @@ def main() -> int:
 
     archive = read_url(archive_url)
     sha512 = hashlib.sha512(archive).hexdigest()
+    version_ref = version_ref_for_style(tag, version, args.version_ref_style)
 
     port_dir = vcpkg_root / "ports" / args.port
     port_path = f"ports/{args.port}"
@@ -553,6 +568,7 @@ def main() -> int:
         "PORT": args.port,
         "VERSION": version,
         "TAG": tag,
+        "VERSION_REF": version_ref,
         "UPSTREAM_REPOSITORY": args.upstream_repository,
         "SOURCE_SHA512": sha512,
         "ARCHIVE_URL": archive_url,
@@ -564,7 +580,7 @@ def main() -> int:
     else:
         if not port_dir.is_dir():
             fail(f"{port_dir} does not exist; provide --template-dir for new ports")
-        update_existing_port(port_dir, tag, version, sha512)
+        update_existing_port(port_dir, version_ref, version, sha512)
 
     cmake_package_name = args.cmake_package_name.strip() or default_cmake_package_name(args.port)
     cmake_target_name = args.cmake_target_name.strip() or default_cmake_target_name(args.port)

@@ -134,10 +134,16 @@ Provide `template-dir`. Text files are rendered with these placeholders:
 - `@PORT@`
 - `@VERSION@`
 - `@TAG@`
+- `@VERSION_REF@`
 - `@UPSTREAM_REPOSITORY@`
 - `@SOURCE_SHA512@`
 - `@ARCHIVE_URL@`
 - `@HEAD_REF@`
+
+`@TAG@` is always the resolved upstream tag. `@VERSION_REF@` defaults to the
+same value. With `version-ref-style: auto`, it renders as `${VERSION}` when the
+tag exactly matches the version, as `v${VERSION}` when the tag exactly matches
+`v` plus the version, and otherwise remains the literal tag.
 
 Files ending in `.in` have that suffix removed, so `portfile.cmake.in` renders
 to `portfile.cmake`.
@@ -223,6 +229,7 @@ non-standard update logic.
 | `tag` | No | Latest tag | Upstream tag to package. |
 | `version` | No | Derived from `tag` | Version written to `vcpkg.json`. |
 | `version-strip-prefix` | No | `v` | Prefix stripped when deriving `version` from `tag`. |
+| `version-ref-style` | No | `literal` | Template style for `@VERSION_REF@`. Use `auto` to emit `${VERSION}` or `v${VERSION}` when the tag exactly matches the version. |
 | `archive-url` | No | GitHub tag tarball | Source archive URL. Supports `{repository}`, `{tag}`, and `{version}`. |
 | `head-ref` | No | `master` | Template value for `@HEAD_REF@`. |
 | `template-dir` | No | | Template directory for creating or replacing the port. |

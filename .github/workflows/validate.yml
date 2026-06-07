@@ -56,7 +56,7 @@ jobs:
           vcpkg_from_github(
               OUT_SOURCE_PATH SOURCE_PATH
               REPO @UPSTREAM_REPOSITORY@
-              REF "@TAG@"
+              REF "@VERSION_REF@"
               SHA512 @SOURCE_SHA512@
               HEAD_REF @HEAD_REF@
           )
@@ -116,6 +116,7 @@ jobs:
           upstream-repository: owner/fixtureport
           tag: v1.2.3
           archive-url: file://${{ github.workspace }}/selftest/source.tar.gz
+          version-ref-style: auto
           vcpkg-root: selftest/vcpkg
           template-dir: selftest/template
           cmake-config: true
@@ -132,6 +133,7 @@ jobs:
           test "${VERSION}" = "1.2.3"
           test "${PORT_RELATIVE_PATH}" = "ports/fixtureport"
           test "${VERSION_RELATIVE_PATH}" = "versions/f-/fixtureport.json"
+          grep -q "REF \"v\${VERSION}\"" selftest/vcpkg/ports/fixtureport/portfile.cmake
           grep -q "x-add-version fixtureport --overwrite-version" selftest/vcpkg.log
           grep -q "install fixtureport:x64-linux --clean-after-build" selftest/vcpkg.log
           grep -q "add_library(unofficial::fixtureport::fixtureport UNKNOWN IMPORTED)" selftest/vcpkg/ports/fixtureport/unofficial-fixtureportConfig.cmake

@@ -2,6 +2,12 @@
 
 ## Unreleased
 
+### Added
+
+- Optional `version-ref-style: auto` support for rendering `@VERSION_REF@` as
+  `${VERSION}` or `v${VERSION}` when the upstream tag exactly matches the
+  vcpkg version.
+
 ## v2.0.0 - 2026-06-07
 
 ### Changed

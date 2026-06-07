@@ -26,6 +26,10 @@ inputs:
     description: Prefix to strip from tag when deriving version.
     required: false
     default: v
+  version-ref-style:
+    description: REF template style. Use literal to render the resolved tag, or auto to render ${VERSION}/v${VERSION} when the tag exactly matches the version.
+    required: false
+    default: literal
   archive-url:
     description: Source archive URL. Supports {repository}, {tag}, and {version}; defaults to GitHub tag tarball.
     required: false
@@ -128,6 +132,7 @@ runs:
         INPUT_TAG: ${{ inputs.tag }}
         INPUT_VERSION: ${{ inputs.version }}
         INPUT_VERSION_STRIP_PREFIX: ${{ inputs.version-strip-prefix }}
+        INPUT_VERSION_REF_STYLE: ${{ inputs.version-ref-style }}
         INPUT_ARCHIVE_URL: ${{ inputs.archive-url }}
         INPUT_HEAD_REF: ${{ inputs.head-ref }}
         INPUT_TEMPLATE_DIR: ${{ inputs.template-dir }}
@@ -159,6 +164,7 @@ runs:
           --tag "$INPUT_TAG" \
           --version "$INPUT_VERSION" \
           --version-strip-prefix "$INPUT_VERSION_STRIP_PREFIX" \
+          --version-ref-style "$INPUT_VERSION_REF_STYLE" \
           --archive-url "$INPUT_ARCHIVE_URL" \
           --head-ref "$INPUT_HEAD_REF" \
           --template-dir "$INPUT_TEMPLATE_DIR" \

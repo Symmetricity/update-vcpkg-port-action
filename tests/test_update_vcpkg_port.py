@@ -127,6 +127,65 @@ class UpdateVcpkgPortTests(unittest.TestCase):
             self.assertIn("x-add-version examplelib --overwrite-version", log)
             self.assertIn("install examplelib:x64-linux --clean-after-build", log)
 
+    def test_version_ref_style_auto_renders_lossless_version_refs(self) -> None:
+        cases = [
+            ("v3.0.0", "3.0.0", "v${VERSION}"),
+            ("3.0.0", "3.0.0", "${VERSION}"),
+            ("release-3.0.0", "3.0.0", "release-3.0.0"),
+        ]
+        for tag, version, expected_ref in cases:
+            with self.subTest(tag=tag, version=version):
+                with tempfile.TemporaryDirectory() as tmp:
+                    tmp_path = Path(tmp)
+                    vcpkg_root = tmp_path / "vcpkg"
+                    template_dir = tmp_path / "template"
+                    archive = tmp_path / "source.tar.gz"
+                    log_path = tmp_path / "vcpkg.log"
+
+                    (vcpkg_root / "ports").mkdir(parents=True)
+                    (vcpkg_root / "versions").mkdir()
+                    make_fake_vcpkg(vcpkg_root, log_path)
+                    archive.write_bytes(b"archive bytes")
+
+                    template_dir.mkdir()
+                    (template_dir / "portfile.cmake.in").write_text(
+                        'REF "@VERSION_REF@"\nLITERAL_TAG "@TAG@"\nSHA512 @SOURCE_SHA512@\n',
+                        encoding="utf-8",
+                    )
+                    (template_dir / "vcpkg.json.in").write_text(
+                        '{"name":"@PORT@","version":"@VERSION@"}\n',
+                        encoding="utf-8",
+                    )
+
+                    subprocess.run(
+                        [
+                            sys.executable,
+                            str(SCRIPT),
+                            "--port",
+                            "examplelib",
+                            "--vcpkg-root",
+                            str(vcpkg_root),
+                            "--tag",
+                            tag,
+                            "--version",
+                            version,
+                            "--version-ref-style",
+                            "auto",
+                            "--archive-url",
+                            file_url(archive),
+                            "--template-dir",
+                            str(template_dir),
+                            "--run-install",
+                            "false",
+                        ],
+                        check=True,
+                        env=os.environ.copy(),
+                    )
+
+                    portfile = (vcpkg_root / "ports" / "examplelib" / "portfile.cmake").read_text(encoding="utf-8")
+                    self.assertIn(f'REF "{expected_ref}"', portfile)
+                    self.assertIn(f'LITERAL_TAG "{tag}"', portfile)
+
     def test_existing_port_update_resets_port_version(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             tmp_path = Path(tmp)
@@ -160,6 +219,8 @@ class UpdateVcpkgPortTests(unittest.TestCase):
                     str(vcpkg_root),
                     "--tag",
                     "v2.0.0",
+                    "--version-ref-style",
+                    "auto",
                     "--archive-url",
                     file_url(archive),
                     "--run-install",
@@ -172,7 +233,7 @@ class UpdateVcpkgPortTests(unittest.TestCase):
             portfile = (port_dir / "portfile.cmake").read_text(encoding="utf-8")
             manifest = json.loads((port_dir / "vcpkg.json").read_text(encoding="utf-8"))
 
-            self.assertIn('REF "v2.0.0"', portfile)
+            self.assertIn('REF "v${VERSION}"', portfile)
             self.assertIn(f"SHA512 {expected_sha}", portfile)
             self.assertEqual(manifest["version"], "2.0.0")
             self.assertNotIn("port-version", manifest)
