@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v1.1.0 - 2026-06-07
+
 ### Added
 
 - Optional generated CMake package config support for simple single-target

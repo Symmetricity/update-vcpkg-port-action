@@ -100,7 +100,7 @@ jobs:
           template-dir: project/.vcpkg-port-template
           dry-run: ${{ env.DRY_RUN }}
 
-      - name: Compile consumer smoke test
+      - name: Run package-specific smoke test
         if: ${{ steps.existing.outputs.exists != 'true' && hashFiles('project/.github/vcpkg-consumer-smoke-test.sh') != '' }}
         env:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg

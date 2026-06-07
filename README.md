@@ -8,9 +8,10 @@ This action handles the mechanical release-update work for a vcpkg port:
 - Resolve an upstream tag and source archive.
 - Compute the source archive SHA512.
 - Render a package-specific port template.
+- Optionally generate a simple CMake package config and usage file.
 - Run `vcpkg format-manifest`.
 - Run `vcpkg x-add-version`.
-- Optionally run `vcpkg install` for validation.
+- Optionally run `vcpkg install` and a CMake consumer smoke test for validation.
 
 The action does not infer a complete vcpkg recipe from arbitrary source code.
 New ports normally need package-specific templates for the build system,
@@ -26,6 +27,8 @@ workflows own those policy decisions.
 - Adds template-based vcpkg port creation and update support.
 - Supports latest-tag lookup, explicit tags, custom archive URLs, and
   tag-derived versions.
+- Can generate simple CMake package configs for single-target ports.
+- Can build a generated downstream CMake consumer after `vcpkg install`.
 - Refreshes the vcpkg versions database with `vcpkg x-add-version`.
 - Provides manual, upstream-maintainer, and user-maintained workflow examples.
 
@@ -73,6 +76,20 @@ before invoking the action:
 
 For a fork in a different repository, use a secret token with write access to
 that vcpkg fork. The default `github.token` cannot push to another repository.
+
+For simple single-target CMake packages, add the optional CMake config and
+consumer-test inputs:
+
+```yaml
+with:
+  cmake-config: true
+  cmake-package-name: examplelib
+  cmake-target-name: examplelib::examplelib
+  cmake-header-names: examplelib.h
+  cmake-library-names: examplelib
+  consumer-test: true
+  consumer-test-language: CXX
+```
 
 ## Prerequisites
 
@@ -149,20 +166,20 @@ install an upstream CMake package config, set `cmake-config: true`.
 
 ```yaml
 with:
-  port: streamvbyte
+  port: examplelib
   cmake-config: true
-  cmake-package-name: streamvbyte
-  cmake-target-name: streamvbyte::streamvbyte
-  cmake-header-names: streamvbyte.h
-  cmake-library-names: streamvbyte
+  cmake-package-name: examplelib
+  cmake-target-name: examplelib::examplelib
+  cmake-header-names: examplelib.h
+  cmake-library-names: examplelib
 ```
 
 This generates `<package>Config.cmake`, installs it from the portfile, and
 writes usage text like:
 
 ```cmake
-find_package(streamvbyte CONFIG REQUIRED)
-target_link_libraries(main PRIVATE streamvbyte::streamvbyte)
+find_package(examplelib CONFIG REQUIRED)
+target_link_libraries(main PRIVATE examplelib::examplelib)
 ```
 
 Use this only for straightforward targets. Packages with multiple libraries,
@@ -180,10 +197,10 @@ builds through the checked-out vcpkg toolchain.
 with:
   run-install: true
   consumer-test: true
-  consumer-test-language: C
-  cmake-package-name: streamvbyte
-  cmake-target-name: streamvbyte::streamvbyte
-  cmake-header-names: streamvbyte.h
+  consumer-test-language: CXX
+  cmake-package-name: examplelib
+  cmake-target-name: examplelib::examplelib
+  cmake-header-names: examplelib.h
 ```
 
 This is generic enough to catch broken package config, include path, and target
@@ -258,12 +275,16 @@ After this action runs, the caller can commit and push if `changed` is true:
     git -C vcpkg push origin "HEAD:update/${PORT}-${TAG}-${GITHUB_RUN_ID}"
 ```
 
-### Add a consumer smoke test
+### Add Consumer Validation
 
-Put any package-specific consumer smoke test between the update step and the
-commit step. `vcpkg install` validates that the port builds and installs; a
-small downstream compile test catches usage issues such as the required C++
-standard, include paths, and link instructions.
+For simple CMake consumers, set `consumer-test: true` on the action. The action
+will build a generated downstream project after `vcpkg install`.
+
+For package-specific runtime checks, feature checks, or multi-component
+consumers, put a custom smoke test between the update step and the commit step.
+`vcpkg install` validates that the port builds and installs; downstream tests
+catch usage issues such as the required C++ standard, include paths, and link
+instructions.
 
 ### Open a pull request
 
@@ -298,13 +319,13 @@ For the examples in this repository:
 
 This action follows the same release model recommended for GitHub Actions:
 
-- Immutable semantic version release tags such as `v1.0.0`.
+- Immutable semantic version release tags such as `v1.1.0`.
 - A moving major version tag such as `v1` for the latest backward-compatible
   release.
 - New major tags such as `v2` for breaking input, output, or behavior changes.
 
 Use `Symmetricity/update-vcpkg-port-action@v1` for the latest stable v1 release.
-Pin to `@v1.0.0` or a full commit SHA when you need stricter reproducibility.
+Pin to `@v1.1.0` or a full commit SHA when you need stricter reproducibility.
 
 ## License
 

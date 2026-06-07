@@ -19,6 +19,37 @@ on:
         description: "Render and validate the port, print the diff, and skip commit/push"
         default: true
         type: boolean
+      cmake_config:
+        description: "Generate a simple CMake package config for a single-target port"
+        default: false
+        type: boolean
+      cmake_package_name:
+        description: "Optional CMake package name, for example examplelib"
+        required: false
+        type: string
+      cmake_target_name:
+        description: "Optional CMake target name, for example examplelib::examplelib"
+        required: false
+        type: string
+      cmake_header_names:
+        description: "Optional headers for generated config/test, for example examplelib.h"
+        required: false
+        type: string
+      cmake_library_names:
+        description: "Optional libraries for generated config, for example examplelib"
+        required: false
+        type: string
+      consumer_test:
+        description: "Build a generated CMake consumer after vcpkg install"
+        default: false
+        type: boolean
+      consumer_test_language:
+        description: "Language for the generated CMake consumer"
+        default: CXX
+        type: choice
+        options:
+          - CXX
+          - C
 
 permissions:
   contents: read
@@ -73,9 +104,16 @@ jobs:
           tag: ${{ inputs.tag }}
           vcpkg-root: vcpkg
           template-dir: project/.vcpkg-port-template
+          cmake-config: ${{ inputs.cmake_config }}
+          cmake-package-name: ${{ inputs.cmake_package_name }}
+          cmake-target-name: ${{ inputs.cmake_target_name }}
+          cmake-header-names: ${{ inputs.cmake_header_names }}
+          cmake-library-names: ${{ inputs.cmake_library_names }}
+          consumer-test: ${{ inputs.consumer_test }}
+          consumer-test-language: ${{ inputs.consumer_test_language }}
           dry-run: ${{ inputs.dry_run }}
 
-      - name: Compile consumer smoke test
+      - name: Run package-specific smoke test
         if: ${{ hashFiles('project/.github/vcpkg-consumer-smoke-test.sh') != '' }}
         env:
           VCPKG_ROOT: ${{ github.workspace }}/vcpkg
