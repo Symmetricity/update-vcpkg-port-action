@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v2.1.0 - 2026-06-07
+
 ### Added
 
 - Optional `version-ref-style: auto` support for rendering `@VERSION_REF@` as
