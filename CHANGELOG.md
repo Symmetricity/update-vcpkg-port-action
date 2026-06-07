@@ -2,6 +2,8 @@
 
 ## Unreleased
 
+## v2.0.0 - 2026-06-07
+
 ### Changed
 
 - Generated CMake configs now default to vcpkg's `unofficial-<port>` package
