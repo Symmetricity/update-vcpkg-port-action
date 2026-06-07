@@ -1,0 +1,11 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Security vulnerability
+    url: https://github.com/Symmetricity/update-vcpkg-port-action/security/policy
+    about: Report suspected vulnerabilities privately instead of opening a public issue.
+  - name: GitHub Actions help
+    url: https://github.com/orgs/community/discussions/categories/actions
+    about: Ask general GitHub Actions usage questions in the GitHub Community.
+  - name: vcpkg help
+    url: https://github.com/microsoft/vcpkg/discussions
+    about: Ask general vcpkg packaging and port usage questions in vcpkg Discussions.

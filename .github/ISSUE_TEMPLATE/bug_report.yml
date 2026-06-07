@@ -1,0 +1,115 @@
+name: Bug report
+description: Report a reproducible problem with this action
+title: "[Bug]: "
+labels:
+  - bug
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for taking the time to report a problem.
+
+        Do not include secrets, tokens, private repository URLs, or unreleased
+        vulnerability details. Report security vulnerabilities using the
+        instructions in SECURITY.md instead of opening a public issue.
+  - type: textarea
+    id: description
+    attributes:
+      label: Description
+      description: What is the bug?
+    validations:
+      required: true
+  - type: input
+    id: action-version
+    attributes:
+      label: Action version
+      description: For example, v1, v1.1.0, or a full commit SHA.
+      placeholder: v1
+    validations:
+      required: true
+  - type: dropdown
+    id: affected-area
+    attributes:
+      label: Affected area
+      multiple: true
+      options:
+        - Action runtime
+        - Template rendering
+        - Existing port update mode
+        - Generated CMake config
+        - Consumer smoke test
+        - Workflow examples
+        - Documentation
+        - CI or security checks
+    validations:
+      required: true
+  - type: dropdown
+    id: runner-os
+    attributes:
+      label: Runner operating system
+      options:
+        - Ubuntu
+        - macOS
+        - Windows
+        - Other
+    validations:
+      required: true
+  - type: dropdown
+    id: runner-type
+    attributes:
+      label: Runner type
+      options:
+        - GitHub-hosted
+        - Self-hosted
+    validations:
+      required: true
+  - type: input
+    id: vcpkg-triplet
+    attributes:
+      label: vcpkg triplet
+      description: If applicable, include the triplet used by run-install or consumer-test.
+      placeholder: x64-linux
+  - type: textarea
+    id: workflow
+    attributes:
+      label: Workflow snippet
+      description: Include the relevant checkout and action step, with secrets removed.
+      render: yaml
+    validations:
+      required: true
+  - type: textarea
+    id: repro
+    attributes:
+      label: Reproduction steps
+      description: Provide the shortest steps or public test repository that reproduces the issue.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: actual
+    attributes:
+      label: Actual behavior
+    validations:
+      required: true
+  - type: textarea
+    id: logs
+    attributes:
+      label: Logs or generated diff
+      description: Paste relevant logs or dry-run output with secrets removed.
+      render: text
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Checklist
+      options:
+        - label: I searched existing issues and pull requests.
+          required: true
+        - label: I removed secrets and private credentials from this report.
+          required: true
+        - label: I agree to follow this project's Code of Conduct.
+          required: true

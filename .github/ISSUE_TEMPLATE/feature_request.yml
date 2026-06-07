@@ -1,0 +1,62 @@
+name: Feature request
+description: Suggest an improvement to this action
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thanks for suggesting an improvement. Please keep requests focused on
+        this action rather than general vcpkg packaging support.
+  - type: textarea
+    id: problem
+    attributes:
+      label: Problem
+      description: What limitation or workflow problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposal
+      description: What behavior, input, output, example, or documentation should change?
+    validations:
+      required: true
+  - type: dropdown
+    id: affected-area
+    attributes:
+      label: Affected area
+      multiple: true
+      options:
+        - Action inputs or outputs
+        - Template rendering
+        - vcpkg validation
+        - Generated CMake config
+        - Consumer smoke test
+        - Workflow examples
+        - Documentation
+        - Release process
+        - CI or security checks
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+      description: Describe any current workaround or rejected approach.
+  - type: textarea
+    id: example
+    attributes:
+      label: Example usage
+      description: Show the workflow or command shape you would expect.
+      render: yaml
+  - type: checkboxes
+    id: contribution
+    attributes:
+      label: Contribution
+      options:
+        - label: I would be willing to submit a pull request for this change.
+          required: false
+        - label: I agree to follow this project's Code of Conduct.
+          required: true
