@@ -92,7 +92,11 @@ jobs:
             build_root="$(mktemp -d)"
 
             mkdir -p "${install_root}/include" "${install_root}/lib" "${install_root}/share/${port}"
-            cp "ports/${port}/${port}Config.cmake" "${install_root}/share/${port}/${port}Config.cmake"
+            for config in "ports/${port}"/*Config.cmake; do
+              package="$(basename "${config}" Config.cmake)"
+              mkdir -p "${install_root}/share/${package}"
+              cp "${config}" "${install_root}/share/${package}/"
+            done
             cp "ports/${port}/usage" "${install_root}/share/${port}/usage"
             printf '#pragma once\n' > "${install_root}/include/${port}.h"
             printf 'void %s_dummy(void) {}\n' "${port}" > "${build_root}/${port}.c"
@@ -115,8 +119,6 @@ jobs:
           vcpkg-root: selftest/vcpkg
           template-dir: selftest/template
           cmake-config: true
-          cmake-package-name: fixtureport
-          cmake-target-name: fixtureport::fixtureport
           cmake-header-names: fixtureport.h
           cmake-library-names: fixtureport
           consumer-test: true
@@ -132,5 +134,5 @@ jobs:
           test "${VERSION_RELATIVE_PATH}" = "versions/f-/fixtureport.json"
           grep -q "x-add-version fixtureport --overwrite-version" selftest/vcpkg.log
           grep -q "install fixtureport:x64-linux --clean-after-build" selftest/vcpkg.log
-          grep -q "add_library(fixtureport::fixtureport UNKNOWN IMPORTED)" selftest/vcpkg/ports/fixtureport/fixtureportConfig.cmake
-          grep -q "find_package(fixtureport CONFIG REQUIRED)" selftest/vcpkg/ports/fixtureport/usage
+          grep -q "add_library(unofficial::fixtureport::fixtureport UNKNOWN IMPORTED)" selftest/vcpkg/ports/fixtureport/unofficial-fixtureportConfig.cmake
+          grep -q "find_package(unofficial-fixtureport CONFIG REQUIRED)" selftest/vcpkg/ports/fixtureport/usage

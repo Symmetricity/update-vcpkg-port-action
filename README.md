@@ -83,8 +83,6 @@ consumer-test inputs:
 ```yaml
 with:
   cmake-config: true
-  cmake-package-name: examplelib
-  cmake-target-name: examplelib::examplelib
   cmake-header-names: examplelib.h
   cmake-library-names: examplelib
   consumer-test: true
@@ -168,23 +166,27 @@ install an upstream CMake package config, set `cmake-config: true`.
 with:
   port: examplelib
   cmake-config: true
-  cmake-package-name: examplelib
-  cmake-target-name: examplelib::examplelib
   cmake-header-names: examplelib.h
   cmake-library-names: examplelib
 ```
 
-This generates `<package>Config.cmake`, installs it from the portfile, and
-writes usage text like:
+By default this generates a vcpkg-owned CMake package config using vcpkg's
+`unofficial-` convention, installs it from the portfile, and writes usage text
+like:
 
 ```cmake
-find_package(examplelib CONFIG REQUIRED)
-target_link_libraries(main PRIVATE examplelib::examplelib)
+find_package(unofficial-examplelib CONFIG REQUIRED)
+target_link_libraries(main PRIVATE unofficial::examplelib::examplelib)
 ```
 
 Use this only for straightforward targets. Packages with multiple libraries,
 component selection, transitive `find_dependency()` calls, unusual debug/release
 names, or an upstream CMake config should keep that logic in the template.
+
+Only set `cmake-package-name` and `cmake-target-name` to official names when the
+package intentionally owns those names. In the curated vcpkg registry, CMake
+configs added by the port rather than upstream should use `unofficial-<port>`
+and `unofficial::<port>::...` names.
 
 ### Consumer Smoke Test
 
@@ -198,8 +200,6 @@ with:
   run-install: true
   consumer-test: true
   consumer-test-language: CXX
-  cmake-package-name: examplelib
-  cmake-target-name: examplelib::examplelib
   cmake-header-names: examplelib.h
 ```
 
@@ -227,8 +227,8 @@ non-standard update logic.
 | `head-ref` | No | `master` | Template value for `@HEAD_REF@`. |
 | `template-dir` | No | | Template directory for creating or replacing the port. |
 | `cmake-config` | No | `false` | Generate a simple CMake package config, imported target, and usage file for the port. |
-| `cmake-package-name` | No | `port` | Package name used with `find_package(... CONFIG REQUIRED)`. |
-| `cmake-target-name` | No | `<package>::<package>` | Imported target defined by the generated CMake config. |
+| `cmake-package-name` | No | `unofficial-<port>` | Package name used with `find_package(... CONFIG REQUIRED)`. |
+| `cmake-target-name` | No | `unofficial::<port>::<port>` | Imported target defined by the generated CMake config. |
 | `cmake-header-names` | No | | Header names passed to `find_path`, separated by spaces, commas, or semicolons. |
 | `cmake-library-names` | No | | Library names passed to `find_library`, separated by spaces, commas, or semicolons. |
 | `consumer-test` | No | `false` | Build a tiny CMake consumer project after `vcpkg install` using the configured package, target, and headers. |

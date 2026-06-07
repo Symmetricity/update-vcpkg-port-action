@@ -41,10 +41,10 @@ inputs:
     required: false
     default: "false"
   cmake-package-name:
-    description: Package name used with find_package(... CONFIG REQUIRED). Defaults to the port name.
+    description: Package name used with find_package(... CONFIG REQUIRED). Defaults to unofficial-<port> for generated vcpkg-owned configs.
     required: false
   cmake-target-name:
-    description: Imported target defined by the generated CMake config. Defaults to <package>::<package>.
+    description: Imported target defined by the generated CMake config. Defaults to unofficial::<port>::<port>.
     required: false
   cmake-header-names:
     description: Header names passed to find_path in the generated CMake config, separated by spaces, commas, or semicolons.

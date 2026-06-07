@@ -174,6 +174,14 @@ def validate_cmake_names(label: str, values: list[str], pattern: str) -> None:
             fail(f"invalid {label}: {value}")
 
 
+def default_cmake_package_name(port: str) -> str:
+    return f"unofficial-{port}"
+
+
+def default_cmake_target_name(port: str) -> str:
+    return f"unofficial::{port}::{port}"
+
+
 def cmake_variable_stem(package_name: str) -> str:
     stem = re.sub(r"[^A-Za-z0-9_]", "_", package_name).upper()
     if stem[0].isdigit():
@@ -314,27 +322,34 @@ def write_generated_cmake_config(
         f"  target_link_libraries(main PRIVATE {target_name})\n",
         encoding="utf-8",
     )
-    ensure_portfile_installs_generated_cmake_files(port_dir / "portfile.cmake", config_filename)
+    ensure_portfile_installs_generated_cmake_files(port_dir / "portfile.cmake", package_name, config_filename)
 
 
-def ensure_portfile_installs_generated_cmake_files(portfile: Path, config_filename: str) -> None:
+def ensure_portfile_installs_generated_cmake_files(portfile: Path, package_name: str, config_filename: str) -> None:
     if not portfile.is_file():
         fail(f"{portfile} does not exist; cannot install generated CMake config")
 
     start = "# Generated CMake package config install begin"
     end = "# Generated CMake package config install end"
+    text = portfile.read_text(encoding="utf-8")
+    pattern = rf"\n?{re.escape(start)}.*?{re.escape(end)}\n?"
+    text = re.sub(pattern, "\n", text, flags=re.DOTALL).rstrip()
+    usage_install = ""
+    if "${CMAKE_CURRENT_LIST_DIR}/usage" not in text:
+        usage_install = (
+            "file(INSTALL\n"
+            '    "${CMAKE_CURRENT_LIST_DIR}/usage"\n'
+            '    DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}"\n'
+            ")\n"
+        )
     block = (
         f"{start}\n"
         "file(INSTALL\n"
         f'    "${{CMAKE_CURRENT_LIST_DIR}}/{config_filename}"\n'
-        '    "${CMAKE_CURRENT_LIST_DIR}/usage"\n'
-        '    DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}"\n'
-        ")\n"
-        f"{end}\n"
+        f'    DESTINATION "${{CURRENT_PACKAGES_DIR}}/share/{package_name}"\n'
+        ")\n" + usage_install + f"{end}\n"
     )
-    text = portfile.read_text(encoding="utf-8")
-    pattern = rf"\n?{re.escape(start)}.*?{re.escape(end)}\n?"
-    text = re.sub(pattern, "\n", text, flags=re.DOTALL).rstrip() + "\n\n" + block
+    text = text + "\n\n" + block
     portfile.write_text(text, encoding="utf-8")
 
 
@@ -551,8 +566,8 @@ def main() -> int:
             fail(f"{port_dir} does not exist; provide --template-dir for new ports")
         update_existing_port(port_dir, tag, version, sha512)
 
-    cmake_package_name = args.cmake_package_name.strip() or args.port
-    cmake_target_name = args.cmake_target_name.strip() or f"{cmake_package_name}::{cmake_package_name}"
+    cmake_package_name = args.cmake_package_name.strip() or default_cmake_package_name(args.port)
+    cmake_target_name = args.cmake_target_name.strip() or default_cmake_target_name(args.port)
     cmake_header_names = split_input_list(args.cmake_header_names)
     cmake_library_names = split_input_list(args.cmake_library_names)
 

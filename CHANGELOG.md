@@ -2,6 +2,18 @@
 
 ## Unreleased
 
+### Changed
+
+- Generated CMake configs now default to vcpkg's `unofficial-<port>` package
+  name and `unofficial::<port>::<port>` target namespace. Explicit
+  `cmake-package-name` and `cmake-target-name` inputs still override these
+  defaults.
+
+### Fixed
+
+- Generated CMake config install blocks no longer install `usage` a second time
+  when the port template already installs it.
+
 ## v1.1.0 - 2026-06-07
 
 ### Added

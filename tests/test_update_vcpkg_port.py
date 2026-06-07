@@ -47,8 +47,8 @@ if [ "${1:-}" = "-S" ]; then
   source_dir="${2:-}"
   build_dir="${4:-}"
   grep -q "project(vcpkg_consumer_smoke LANGUAGES C)" "$source_dir/CMakeLists.txt"
-  grep -q "find_package(streamvbyte CONFIG REQUIRED)" "$source_dir/CMakeLists.txt"
-  grep -q "target_link_libraries(consumer PRIVATE streamvbyte::streamvbyte)" "$source_dir/CMakeLists.txt"
+  grep -q "find_package(unofficial-streamvbyte CONFIG REQUIRED)" "$source_dir/CMakeLists.txt"
+  grep -q "target_link_libraries(consumer PRIVATE unofficial::streamvbyte::streamvbyte)" "$source_dir/CMakeLists.txt"
   grep -q "#include <streamvbyte.h>" "$source_dir/main.c"
   mkdir -p "$build_dir"
 elif [ "${1:-}" = "--build" ]; then
@@ -218,10 +218,6 @@ class UpdateVcpkgPortTests(unittest.TestCase):
                     str(template_dir),
                     "--cmake-config",
                     "true",
-                    "--cmake-package-name",
-                    "streamvbyte",
-                    "--cmake-target-name",
-                    "streamvbyte::streamvbyte",
                     "--cmake-header-names",
                     "streamvbyte.h",
                     "--cmake-library-names",
@@ -235,20 +231,77 @@ class UpdateVcpkgPortTests(unittest.TestCase):
 
             port_dir = vcpkg_root / "ports" / "streamvbyte"
             portfile = (port_dir / "portfile.cmake").read_text(encoding="utf-8")
-            config = (port_dir / "streamvbyteConfig.cmake").read_text(encoding="utf-8")
+            config = (port_dir / "unofficial-streamvbyteConfig.cmake").read_text(encoding="utf-8")
             usage = (port_dir / "usage").read_text(encoding="utf-8")
 
-            self.assertIn('"${CMAKE_CURRENT_LIST_DIR}/streamvbyteConfig.cmake"', portfile)
+            self.assertIn('"${CMAKE_CURRENT_LIST_DIR}/unofficial-streamvbyteConfig.cmake"', portfile)
+            self.assertIn('DESTINATION "${CURRENT_PACKAGES_DIR}/share/unofficial-streamvbyte"', portfile)
             self.assertIn('"${CMAKE_CURRENT_LIST_DIR}/usage"', portfile)
             self.assertIn('DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}"', portfile)
-            self.assertIn("find_path(STREAMVBYTE_INCLUDE_DIR", config)
+            self.assertIn("find_path(UNOFFICIAL_STREAMVBYTE_INCLUDE_DIR", config)
             self.assertIn('"streamvbyte.h"', config)
-            self.assertIn("find_library(STREAMVBYTE_LIBRARY_RELEASE", config)
-            self.assertIn("add_library(streamvbyte::streamvbyte UNKNOWN IMPORTED)", config)
-            self.assertIn('INTERFACE_INCLUDE_DIRECTORIES "${STREAMVBYTE_INCLUDE_DIR}"', config)
-            self.assertIn('IMPORTED_LOCATION_RELEASE "${STREAMVBYTE_LIBRARY_RELEASE}"', config)
-            self.assertIn("find_package(streamvbyte CONFIG REQUIRED)", usage)
-            self.assertIn("target_link_libraries(main PRIVATE streamvbyte::streamvbyte)", usage)
+            self.assertIn("find_library(UNOFFICIAL_STREAMVBYTE_LIBRARY_RELEASE", config)
+            self.assertIn("add_library(unofficial::streamvbyte::streamvbyte UNKNOWN IMPORTED)", config)
+            self.assertIn('INTERFACE_INCLUDE_DIRECTORIES "${UNOFFICIAL_STREAMVBYTE_INCLUDE_DIR}"', config)
+            self.assertIn('IMPORTED_LOCATION_RELEASE "${UNOFFICIAL_STREAMVBYTE_LIBRARY_RELEASE}"', config)
+            self.assertIn("find_package(unofficial-streamvbyte CONFIG REQUIRED)", usage)
+            self.assertIn("target_link_libraries(main PRIVATE unofficial::streamvbyte::streamvbyte)", usage)
+
+    def test_generated_cmake_config_does_not_duplicate_existing_usage_install(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            vcpkg_root = tmp_path / "vcpkg"
+            template_dir = tmp_path / "template"
+            archive = tmp_path / "source.tar.gz"
+            log_path = tmp_path / "vcpkg.log"
+
+            (vcpkg_root / "ports").mkdir(parents=True)
+            (vcpkg_root / "versions").mkdir()
+            make_fake_vcpkg(vcpkg_root, log_path)
+            archive.write_bytes(b"archive bytes")
+
+            template_dir.mkdir()
+            (template_dir / "portfile.cmake.in").write_text(
+                'REF "@TAG@"\n'
+                "file(INSTALL\n"
+                '    "${CMAKE_CURRENT_LIST_DIR}/usage"\n'
+                '    DESTINATION "${CURRENT_PACKAGES_DIR}/share/${PORT}"\n'
+                ")\n",
+                encoding="utf-8",
+            )
+            (template_dir / "vcpkg.json.in").write_text(
+                '{"name":"@PORT@","version":"@VERSION@"}\n',
+                encoding="utf-8",
+            )
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--port",
+                    "demo",
+                    "--vcpkg-root",
+                    str(vcpkg_root),
+                    "--tag",
+                    "v1.0.0",
+                    "--archive-url",
+                    file_url(archive),
+                    "--template-dir",
+                    str(template_dir),
+                    "--cmake-config",
+                    "true",
+                    "--cmake-header-names",
+                    "demo.h",
+                    "--run-install",
+                    "false",
+                ],
+                check=True,
+                env=os.environ.copy(),
+            )
+
+            portfile = (vcpkg_root / "ports" / "demo" / "portfile.cmake").read_text(encoding="utf-8")
+            self.assertEqual(portfile.count('"${CMAKE_CURRENT_LIST_DIR}/usage"'), 1)
+            self.assertIn('DESTINATION "${CURRENT_PACKAGES_DIR}/share/unofficial-demo"', portfile)
 
     def test_consumer_test_builds_generated_cmake_project(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -300,10 +353,6 @@ class UpdateVcpkgPortTests(unittest.TestCase):
                     str(template_dir),
                     "--cmake-config",
                     "true",
-                    "--cmake-package-name",
-                    "streamvbyte",
-                    "--cmake-target-name",
-                    "streamvbyte::streamvbyte",
                     "--cmake-header-names",
                     "streamvbyte.h",
                     "--cmake-library-names",
