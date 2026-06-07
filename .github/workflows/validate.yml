@@ -46,7 +46,7 @@ jobs:
         env:
           FIXTURE_ROOT: ${{ github.workspace }}/selftest
         run: |
-          mkdir -p "${FIXTURE_ROOT}/source" "${FIXTURE_ROOT}/template" "${FIXTURE_ROOT}/vcpkg/ports" "${FIXTURE_ROOT}/vcpkg/versions"
+          mkdir -p "${FIXTURE_ROOT}/source" "${FIXTURE_ROOT}/template" "${FIXTURE_ROOT}/vcpkg/ports" "${FIXTURE_ROOT}/vcpkg/versions" "${FIXTURE_ROOT}/vcpkg/scripts/buildsystems"
           git -C "${FIXTURE_ROOT}/vcpkg" init
 
           printf 'fixture source\n' > "${FIXTURE_ROOT}/source/README.txt"
@@ -69,6 +69,11 @@ jobs:
           }
           MANIFEST
 
+          cat > "${FIXTURE_ROOT}/vcpkg/scripts/buildsystems/vcpkg.cmake" <<'TOOLCHAIN'
+          get_filename_component(_selftest_vcpkg_root "${CMAKE_CURRENT_LIST_DIR}/../.." ABSOLUTE)
+          list(APPEND CMAKE_PREFIX_PATH "${_selftest_vcpkg_root}/installed/${VCPKG_TARGET_TRIPLET}")
+          TOOLCHAIN
+
           cat > "${FIXTURE_ROOT}/vcpkg/vcpkg" <<'VCPKG'
           #!/usr/bin/env bash
           set -euo pipefail
@@ -79,6 +84,21 @@ jobs:
             first="${port:0:1}"
             mkdir -p "versions/${first}-"
             printf '{"versions":[{"version":"1.2.3","port-version":0,"git-tree":"fake"}]}\n' > "versions/${first}-/${port}.json"
+          elif [ "${1:-}" = "install" ]; then
+            port_triplet="${2:-}"
+            port="${port_triplet%%:*}"
+            triplet="${port_triplet#*:}"
+            install_root="installed/${triplet}"
+            build_root="$(mktemp -d)"
+
+            mkdir -p "${install_root}/include" "${install_root}/lib" "${install_root}/share/${port}"
+            cp "ports/${port}/${port}Config.cmake" "${install_root}/share/${port}/${port}Config.cmake"
+            cp "ports/${port}/usage" "${install_root}/share/${port}/usage"
+            printf '#pragma once\n' > "${install_root}/include/${port}.h"
+            printf 'void %s_dummy(void) {}\n' "${port}" > "${build_root}/${port}.c"
+            cc -c "${build_root}/${port}.c" -o "${build_root}/${port}.o"
+            ar rcs "${install_root}/lib/lib${port}.a" "${build_root}/${port}.o"
+            rm -rf "${build_root}"
           fi
           VCPKG
           chmod +x "${FIXTURE_ROOT}/vcpkg/vcpkg"
@@ -99,6 +119,8 @@ jobs:
           cmake-target-name: fixtureport::fixtureport
           cmake-header-names: fixtureport.h
           cmake-library-names: fixtureport
+          consumer-test: true
+          consumer-test-language: C
       - name: Verify local action outputs
         env:
           PORT_RELATIVE_PATH: ${{ steps.self-test.outputs.port-relative-path }}

@@ -169,6 +169,27 @@ Use this only for straightforward targets. Packages with multiple libraries,
 component selection, transitive `find_dependency()` calls, unusual debug/release
 names, or an upstream CMake config should keep that logic in the template.
 
+### Consumer Smoke Test
+
+Set `consumer-test: true` to build a tiny downstream CMake project after
+`vcpkg install`. The generated project calls `find_package(... CONFIG
+REQUIRED)`, includes the configured headers, links the configured target, and
+builds through the checked-out vcpkg toolchain.
+
+```yaml
+with:
+  run-install: true
+  consumer-test: true
+  consumer-test-language: C
+  cmake-package-name: streamvbyte
+  cmake-target-name: streamvbyte::streamvbyte
+  cmake-header-names: streamvbyte.h
+```
+
+This is generic enough to catch broken package config, include path, and target
+linkage for simple CMake consumers. It is not a replacement for package-specific
+runtime tests, component tests, or feature matrix tests.
+
 If `template-dir` is omitted, the action can update an existing
 `ports/<port>/vcpkg.json` and `ports/<port>/portfile.cmake`. This compatibility
 mode expects one `REF` line and one `SHA512` line in the portfile; use a
@@ -193,6 +214,8 @@ non-standard update logic.
 | `cmake-target-name` | No | `<package>::<package>` | Imported target defined by the generated CMake config. |
 | `cmake-header-names` | No | | Header names passed to `find_path`, separated by spaces, commas, or semicolons. |
 | `cmake-library-names` | No | | Library names passed to `find_library`, separated by spaces, commas, or semicolons. |
+| `consumer-test` | No | `false` | Build a tiny CMake consumer project after `vcpkg install` using the configured package, target, and headers. |
+| `consumer-test-language` | No | `CXX` | Language for the generated consumer source. Use `C` or `CXX`. |
 | `overwrite-version` | No | `true` | Pass `--overwrite-version` to `vcpkg x-add-version`. |
 | `bootstrap` | No | `true` | Bootstrap vcpkg if the executable is missing. |
 | `run-install` | No | `true` | Run `vcpkg install` after updating. |

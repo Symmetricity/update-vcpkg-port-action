@@ -37,6 +37,30 @@ fi
     os.environ["VCPKG_FAKE_LOG"] = str(log_path)
 
 
+def make_fake_cmake(root: Path, log_path: Path) -> None:
+    exe = root / "cmake"
+    exe.write_text(
+        """#!/usr/bin/env bash
+set -euo pipefail
+echo "$*" >> "$CMAKE_FAKE_LOG"
+if [ "${1:-}" = "-S" ]; then
+  source_dir="${2:-}"
+  build_dir="${4:-}"
+  grep -q "project(vcpkg_consumer_smoke LANGUAGES C)" "$source_dir/CMakeLists.txt"
+  grep -q "find_package(streamvbyte CONFIG REQUIRED)" "$source_dir/CMakeLists.txt"
+  grep -q "target_link_libraries(consumer PRIVATE streamvbyte::streamvbyte)" "$source_dir/CMakeLists.txt"
+  grep -q "#include <streamvbyte.h>" "$source_dir/main.c"
+  mkdir -p "$build_dir"
+elif [ "${1:-}" = "--build" ]; then
+  test -d "${2:-}"
+fi
+""",
+        encoding="utf-8",
+    )
+    exe.chmod(0o755)
+    os.environ["CMAKE_FAKE_LOG"] = str(log_path)
+
+
 class UpdateVcpkgPortTests(unittest.TestCase):
     def test_template_rendering_runs_vcpkg_commands(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
@@ -225,6 +249,80 @@ class UpdateVcpkgPortTests(unittest.TestCase):
             self.assertIn('IMPORTED_LOCATION_RELEASE "${STREAMVBYTE_LIBRARY_RELEASE}"', config)
             self.assertIn("find_package(streamvbyte CONFIG REQUIRED)", usage)
             self.assertIn("target_link_libraries(main PRIVATE streamvbyte::streamvbyte)", usage)
+
+    def test_consumer_test_builds_generated_cmake_project(self) -> None:
+        with tempfile.TemporaryDirectory() as tmp:
+            tmp_path = Path(tmp)
+            vcpkg_root = tmp_path / "vcpkg"
+            template_dir = tmp_path / "template"
+            archive = tmp_path / "source.tar.gz"
+            fake_bin = tmp_path / "bin"
+            vcpkg_log_path = tmp_path / "vcpkg.log"
+            cmake_log_path = tmp_path / "cmake.log"
+
+            (vcpkg_root / "ports").mkdir(parents=True)
+            (vcpkg_root / "versions").mkdir()
+            (vcpkg_root / "scripts" / "buildsystems").mkdir(parents=True)
+            (vcpkg_root / "scripts" / "buildsystems" / "vcpkg.cmake").write_text("", encoding="utf-8")
+            fake_bin.mkdir()
+            make_fake_vcpkg(vcpkg_root, vcpkg_log_path)
+            make_fake_cmake(fake_bin, cmake_log_path)
+            archive.write_bytes(b"archive bytes")
+
+            template_dir.mkdir()
+            (template_dir / "portfile.cmake.in").write_text(
+                'REF "@TAG@"\nSHA512 @SOURCE_SHA512@\n',
+                encoding="utf-8",
+            )
+            (template_dir / "vcpkg.json.in").write_text(
+                '{"name":"@PORT@","version":"@VERSION@"}\n',
+                encoding="utf-8",
+            )
+
+            env = os.environ.copy()
+            env["PATH"] = str(fake_bin) + os.pathsep + env["PATH"]
+
+            subprocess.run(
+                [
+                    sys.executable,
+                    str(SCRIPT),
+                    "--port",
+                    "streamvbyte",
+                    "--vcpkg-root",
+                    str(vcpkg_root),
+                    "--upstream-repository",
+                    "fast-pack/streamvbyte",
+                    "--tag",
+                    "v3.0.0",
+                    "--archive-url",
+                    file_url(archive),
+                    "--template-dir",
+                    str(template_dir),
+                    "--cmake-config",
+                    "true",
+                    "--cmake-package-name",
+                    "streamvbyte",
+                    "--cmake-target-name",
+                    "streamvbyte::streamvbyte",
+                    "--cmake-header-names",
+                    "streamvbyte.h",
+                    "--cmake-library-names",
+                    "streamvbyte",
+                    "--consumer-test",
+                    "true",
+                    "--consumer-test-language",
+                    "C",
+                ],
+                check=True,
+                env=env,
+            )
+
+            vcpkg_log = vcpkg_log_path.read_text(encoding="utf-8")
+            cmake_log = cmake_log_path.read_text(encoding="utf-8")
+            self.assertIn("install streamvbyte:x64-linux --clean-after-build", vcpkg_log)
+            self.assertIn("-DCMAKE_TOOLCHAIN_FILE=", cmake_log)
+            self.assertIn("-DVCPKG_TARGET_TRIPLET=x64-linux", cmake_log)
+            self.assertIn("--build", cmake_log)
 
 
 if __name__ == "__main__":

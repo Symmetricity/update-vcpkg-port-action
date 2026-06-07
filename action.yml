@@ -52,6 +52,14 @@ inputs:
   cmake-library-names:
     description: Library names passed to find_library in the generated CMake config, separated by spaces, commas, or semicolons.
     required: false
+  consumer-test:
+    description: Build a tiny CMake consumer project after vcpkg install using the configured package, target, and headers.
+    required: false
+    default: "false"
+  consumer-test-language:
+    description: Language for the generated consumer source. Use C or CXX.
+    required: false
+    default: CXX
   overwrite-version:
     description: Pass --overwrite-version to vcpkg x-add-version.
     required: false
@@ -128,6 +136,8 @@ runs:
         INPUT_CMAKE_TARGET_NAME: ${{ inputs.cmake-target-name }}
         INPUT_CMAKE_HEADER_NAMES: ${{ inputs.cmake-header-names }}
         INPUT_CMAKE_LIBRARY_NAMES: ${{ inputs.cmake-library-names }}
+        INPUT_CONSUMER_TEST: ${{ inputs.consumer-test }}
+        INPUT_CONSUMER_TEST_LANGUAGE: ${{ inputs.consumer-test-language }}
         INPUT_OVERWRITE_VERSION: ${{ inputs.overwrite-version }}
         INPUT_BOOTSTRAP: ${{ inputs.bootstrap }}
         INPUT_RUN_INSTALL: ${{ inputs.run-install }}
@@ -157,6 +167,8 @@ runs:
           --cmake-target-name "$INPUT_CMAKE_TARGET_NAME" \
           --cmake-header-names "$INPUT_CMAKE_HEADER_NAMES" \
           --cmake-library-names "$INPUT_CMAKE_LIBRARY_NAMES" \
+          --consumer-test "$INPUT_CONSUMER_TEST" \
+          --consumer-test-language "$INPUT_CONSUMER_TEST_LANGUAGE" \
           --overwrite-version "$INPUT_OVERWRITE_VERSION" \
           --bootstrap "$INPUT_BOOTSTRAP" \
           --run-install "$INPUT_RUN_INSTALL" \

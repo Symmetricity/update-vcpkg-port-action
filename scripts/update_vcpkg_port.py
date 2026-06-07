@@ -9,6 +9,7 @@ import shlex
 import shutil
 import subprocess
 import sys
+import tempfile
 import urllib.error
 import urllib.request
 
@@ -337,6 +338,76 @@ def ensure_portfile_installs_generated_cmake_files(portfile: Path, config_filena
     portfile.write_text(text, encoding="utf-8")
 
 
+def consumer_test_source(header_names: list[str], language: str) -> str:
+    includes = "".join(f"#include <{header}>\n" for header in header_names)
+    if language == "CXX":
+        return includes + "int main() { return 0; }\n"
+    return includes + "int main(void) { return 0; }\n"
+
+
+def consumer_test_cmake(package_name: str, target_name: str, language: str, source_name: str) -> str:
+    return (
+        "cmake_minimum_required(VERSION 3.20)\n"
+        f"project(vcpkg_consumer_smoke LANGUAGES {language})\n"
+        f"find_package({package_name} CONFIG REQUIRED)\n"
+        f"add_executable(consumer {source_name})\n"
+        f"target_link_libraries(consumer PRIVATE {target_name})\n"
+    )
+
+
+def run_consumer_test(
+    vcpkg_root: Path,
+    package_name: str,
+    target_name: str,
+    header_names: list[str],
+    language: str,
+    triplet: str,
+) -> None:
+    language = language.strip().upper()
+    if language not in {"C", "CXX"}:
+        fail("--consumer-test-language must be C or CXX")
+
+    validate_cmake_package_name(package_name)
+    validate_cmake_target_name(target_name)
+    validate_cmake_names("CMake header name", header_names, r"[A-Za-z0-9_./+-]+")
+
+    cmake = shutil.which("cmake")
+    if not cmake:
+        fail("cmake is required when --consumer-test is true")
+
+    toolchain = vcpkg_root / "scripts" / "buildsystems" / "vcpkg.cmake"
+    if not toolchain.is_file():
+        fail(f"vcpkg CMake toolchain file does not exist at {toolchain}")
+
+    source_name = "main.cpp" if language == "CXX" else "main.c"
+    with tempfile.TemporaryDirectory(prefix="update-vcpkg-port-consumer-") as tmp:
+        tmp_path = Path(tmp)
+        source_dir = tmp_path / "src"
+        build_dir = tmp_path / "build"
+        source_dir.mkdir()
+        (source_dir / "CMakeLists.txt").write_text(
+            consumer_test_cmake(package_name, target_name, language, source_name),
+            encoding="utf-8",
+        )
+        (source_dir / source_name).write_text(
+            consumer_test_source(header_names, language),
+            encoding="utf-8",
+        )
+
+        run(
+            [
+                cmake,
+                "-S",
+                str(source_dir),
+                "-B",
+                str(build_dir),
+                f"-DCMAKE_TOOLCHAIN_FILE={toolchain}",
+                f"-DVCPKG_TARGET_TRIPLET={triplet}",
+            ]
+        )
+        run([cmake, "--build", str(build_dir)])
+
+
 def bootstrap_vcpkg(vcpkg_root: Path) -> None:
     shell_script = vcpkg_root / "bootstrap-vcpkg.sh"
     batch_script = vcpkg_root / "bootstrap-vcpkg.bat"
@@ -423,6 +494,8 @@ def main() -> int:
     parser.add_argument("--cmake-target-name", default="")
     parser.add_argument("--cmake-header-names", default="")
     parser.add_argument("--cmake-library-names", default="")
+    parser.add_argument("--consumer-test", default="false")
+    parser.add_argument("--consumer-test-language", default="CXX")
     parser.add_argument("--overwrite-version", default="true")
     parser.add_argument("--bootstrap", default="true")
     parser.add_argument("--run-install", default="true")
@@ -478,15 +551,18 @@ def main() -> int:
             fail(f"{port_dir} does not exist; provide --template-dir for new ports")
         update_existing_port(port_dir, tag, version, sha512)
 
+    cmake_package_name = args.cmake_package_name.strip() or args.port
+    cmake_target_name = args.cmake_target_name.strip() or f"{cmake_package_name}::{cmake_package_name}"
+    cmake_header_names = split_input_list(args.cmake_header_names)
+    cmake_library_names = split_input_list(args.cmake_library_names)
+
     if parse_bool(args.cmake_config):
-        cmake_package_name = args.cmake_package_name.strip() or args.port
-        cmake_target_name = args.cmake_target_name.strip() or f"{cmake_package_name}::{cmake_package_name}"
         write_generated_cmake_config(
             port_dir,
             cmake_package_name,
             cmake_target_name,
-            split_input_list(args.cmake_header_names),
-            split_input_list(args.cmake_library_names),
+            cmake_header_names,
+            cmake_library_names,
         )
 
     vcpkg = vcpkg_executable(vcpkg_root)
@@ -509,6 +585,18 @@ def main() -> int:
         install_command = [str(vcpkg), "install", f"{args.port}:{args.test_triplet}"]
         install_command.extend(shlex.split(args.install_args))
         run(install_command, cwd=vcpkg_root)
+
+    if parse_bool(args.consumer_test):
+        if not parse_bool(args.run_install):
+            fail("--consumer-test requires --run-install true")
+        run_consumer_test(
+            vcpkg_root,
+            cmake_package_name,
+            cmake_target_name,
+            cmake_header_names,
+            args.consumer_test_language,
+            args.test_triplet,
+        )
 
     did_change = changed(vcpkg_root, args.port, version_path)
     if parse_bool(args.dry_run):

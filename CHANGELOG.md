@@ -8,6 +8,9 @@
   ports. When enabled, the action writes a package config, usage file, and
   portfile install block so consumers can use `find_package(... CONFIG
   REQUIRED)` with an imported target.
+- Optional CMake consumer smoke test support. When enabled, the action builds a
+  tiny downstream project through the vcpkg toolchain to verify package config,
+  header include paths, and target linkage.
 
 ## v1.0.0
 
